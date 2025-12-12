@@ -1,11 +1,19 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+
 def rosenbrock(theta):
-    return (1 - theta[0])**2 + 100*(theta[1] - theta[0]**2)**2
+    return (1 - theta[0]) ** 2 + 100 * (theta[1] - theta[0] ** 2) ** 2
+
 
 def grad_rosenbrock(theta):
-    return np.array([400*theta[0]**3 - 400*theta[0]*theta[1] + 2*theta[0] - 2 , 200*(theta[1] - theta[0]**2)])
+    return np.array(
+        [
+            400 * theta[0] ** 3 - 400 * theta[0] * theta[1] + 2 * theta[0] - 2,
+            200 * (theta[1] - theta[0] ** 2),
+        ]
+    )
+
 
 def GD(l, grad_l, theta_0, eta, maxit):
 
@@ -17,7 +25,8 @@ def GD(l, grad_l, theta_0, eta, maxit):
         theta_vals.append(theta)
 
     return theta, np.array(theta_vals)
-    
+
+
 def backtracking(L, grad_L, theta, eta0=1.0, beta=0.5, c=1e-4):
     eta = eta0
     g = grad_L(theta)
@@ -26,14 +35,17 @@ def backtracking(L, grad_L, theta, eta0=1.0, beta=0.5, c=1e-4):
         eta *= beta
     return eta
 
+
 def GD_backtracking(l, grad_l, theta_0, maxit, tolL, toltheta):
-    thetas = [theta_0] 
+    thetas = [theta_0]
     for k in range(maxit):
         eta = backtracking(l, grad_l, theta_0)
         theta = theta_0 - eta * grad_l(theta_0)
         thetas.append(theta)
 
-        if (np.linalg.norm(grad_l(theta)) < tolL) or (np.linalg.norm(theta - theta_0) < toltheta):
+        if (np.linalg.norm(grad_l(theta)) < tolL) or (
+            np.linalg.norm(theta - theta_0) < toltheta
+        ):
             break
 
         theta_0 = theta
@@ -60,53 +72,91 @@ def rosenbrock_levelsets(xlim=(-2, 2), ylim=(-1, 3), ngrid=400, ncontours=40, ti
     plt.ylabel(r"$\theta_2$")
     plt.grid(alpha=0.2)
 
-thetas_0 = [np.array([-1.5, 2]), np.array([-1, 0]), np.array([0, 2]), np.array([1.5, 1.5])]
 
-etas = [1e-3, 1e-4, 1e-5] 
+thetas_0 = [
+    np.array([-1.5, 2]),
+    np.array([-1, 0]),
+    np.array([0, 2]),
+    np.array([1.5, 1.5]),
+]
 
-fig, axes = plt.subplots(4, 4, figsize=(14, 14))
-axes = axes.reshape(4,4)
+etas = [1e-3, 1e-4, 1e-5]
 
-for row, theta0 in enumerate(thetas_0):
+for theta0 in thetas_0:
 
     gd_paths = {}
+    gd_losses = {}
+
     for eta in etas:
-        theta_gd, path_gd = GD(rosenbrock, grad_rosenbrock,
-                               theta0, eta=eta, maxit=20000)
+        _, path_gd = GD(rosenbrock, grad_rosenbrock, theta0, eta=eta, maxit=20000)
         gd_paths[eta] = path_gd
+        gd_losses[eta] = [rosenbrock(t) for t in path_gd]
 
-    theta_bt, path_bt, it_bt = GD_backtracking(
-        rosenbrock, grad_rosenbrock, theta0,
-        maxit=50000, tolL=1e-6, toltheta=1e-10
+    _, path_bt, _ = GD_backtracking(
+        rosenbrock, grad_rosenbrock, theta0, maxit=50000, tolL=1e-6, toltheta=1e-10
     )
+    loss_bt = [rosenbrock(t) for t in path_bt]
 
-    method_list = [
-        (f"GD η={etas[0]}", gd_paths[etas[0]]),
-        (f"GD η={etas[1]}", gd_paths[etas[1]]),
-        (f"GD η={etas[2]}", gd_paths[etas[2]]),
-        ("Backtracking", path_bt)
+    methods = [
+        ("GD η=1e-3", gd_paths[etas[0]], gd_losses[etas[0]]),
+        ("GD η=1e-4", gd_paths[etas[1]], gd_losses[etas[1]]),
+        ("GD η=1e-5", gd_paths[etas[2]], gd_losses[etas[2]]),
+        ("Backtracking", path_bt, loss_bt),
     ]
 
-    for col, (title, traj) in enumerate(method_list):
+    fig, axes = plt.subplots(2, 4, figsize=(16, 6), constrained_layout=True)
 
-        ax = axes[row, col]
 
-        xs = np.linspace(-2, 2, 250)
-        ys = np.linspace(-1, 3, 250)
+    for col, (title, traj, losses) in enumerate(methods):
+
+        ax_traj = axes[0, col]
+
+        xs = np.linspace(-2, 2, 300)
+        ys = np.linspace(-1, 3, 300)
         X, Y = np.meshgrid(xs, ys)
-        Z = (1 - X)**2 + 100*(Y - X**2)**2
-        ax.contour(X, Y, Z, levels=20, cmap="Blues", linewidths=0.6, alpha=0.99)
+        Z = (1 - X) ** 2 + 100 * (Y - X**2) ** 2
 
-        ax.plot(traj[:,0], traj[:,1], "-", linewidth=1.8, color="darkred")
-        ax.scatter(traj[0,0], traj[0,1], s=20, color="red")     
-        ax.scatter(traj[-1,0], traj[-1,1], s=35, color="black") 
-        ax.scatter([1], [1], marker="*", color="black", s=60)    
+        levels = np.logspace(-1, 3, 25)
+        ax_traj.contour(
+            X, Y, Z,
+            levels=levels,
+            cmap="Greys",
+            linewidths=0.6,
+            alpha=0.6
+        )
 
-        ax.set_title(f"{title}\ninit={theta0}", fontsize=9)
-        ax.set_aspect("equal")
-        ax.grid(alpha=0.15)
-        ax.set_xticks([])
-        ax.set_yticks([])
+        ax_traj.plot(
+            traj[:, 0], traj[:, 1],
+            color="firebrick",
+            linewidth=1.6,
+            alpha=0.9
+        )   
 
-plt.tight_layout()
-plt.show()
+        ax_traj.scatter(traj[0, 0], traj[0, 1], s=30, color="firebrick", zorder=3)
+        ax_traj.scatter(traj[-1, 0], traj[-1, 1], s=45, color="black", zorder=3)
+        ax_traj.scatter([1], [1], marker="*", s=70, color="black", zorder=4)
+
+
+        ax_traj.set_title(title, fontsize=11)
+        ax_traj.set_aspect("equal")
+        ax_traj.set_xticks([])
+        ax_traj.set_yticks([])
+        ax_traj.grid(alpha=0.15)
+
+        ax_loss = axes[1, col]
+        ax_loss.plot(
+            losses,
+            linewidth=1.6,
+            color="firebrick",
+            alpha=0.9
+        )
+        ax_loss.set_ylim(1e-12, 1e2)
+        ax_loss.set_yscale("log")
+        ax_loss.grid(alpha=0.3)
+
+        if col == 0:
+            ax_loss.set_ylabel("Loss (log)")
+        ax_loss.set_xlabel("Iteration")
+
+    fig.suptitle(r"$\theta_0$" + f" = {theta0}", fontsize=14)
+    plt.show()
